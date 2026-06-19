@@ -27,11 +27,10 @@ services:
     networks:
       - radar-net
     volumes:
-      - /data_archive:/data     # 冷数据盘 (5TB)
+      - /data_archive/minio:/data     # 冷数据盘 (5TB)
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
     command: server /data --console-address ":9001"
     ports:
       - "9020:9000"    # S3 API — 供 VM-1 分层存储连接

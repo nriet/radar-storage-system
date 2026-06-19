@@ -29,11 +29,10 @@ services:
       radar-net:
         ipv4_address: 172.20.1.10
     volumes:
-      - /data:/data     # 热数据盘 (1TB)
+      - /data/minio:/data     # 热数据盘 (1TB)
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
     command: server /data --console-address ":9001"
     ports:
       - "9010:9000"    # S3 API

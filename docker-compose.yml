@@ -36,11 +36,10 @@ services:
       radar-net:
         ipv4_address: 172.20.0.10
     volumes:
-      - /data:/data              # 热数据盘
+      - /data/minio:/data              # 热数据盘
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
     command: server /data --console-address ":9001"
     ports:
       - "9010:9000"    # S3 API（数据读写）
@@ -67,11 +66,10 @@ services:
       radar-net:
         ipv4_address: 172.20.0.20
     volumes:
-      - /data_archive:/data       # 冷数据盘
+      - /data_archive/minio:/data       # 冷数据盘
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
     command: server /data --console-address ":9001"
     ports:
       - "9020:9000"    # S3 API（冷数据访问）
