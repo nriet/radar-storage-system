@@ -1,12 +1,12 @@
 #!/bin/sh
 # ============================================================
-# VM-1 热节点初始化脚本
+# VM-1 热节点初始化脚本（生产环境）
 # 连接 VM-2 冷节点、配置分层存储、设置 ILM
 # 用法: COLD_NODE_IP=192.168.x.x sh init.sh
 # ============================================================
 COLD_IP="${COLD_NODE_IP:-minio-cold}"
 
-echo '=== MinIO 双机初始化 ==='
+echo '=== MinIO 双机初始化（生产环境）==='
 echo "冷节点IP: ${COLD_IP}"
 echo ''
 
@@ -41,15 +41,15 @@ mc ilm rule add hot/radar-archive \
   --noncurrent-transition-days 30 --noncurrent-transition-tier COLD-TIER 2>/dev/null \
   && echo '  ✅ radar-archive: 30天→冷, 365天过期' || echo '  ℹ️  已存在'
 
-echo '[4/4] 服务账号...'
+echo '[4/4] 监控账号...'
 mc admin user svcacct add hot radaradmin \
-  --access-key radar-simulator --secret-key 'RadarSim@2024!' \
+  --access-key radar-monitor --secret-key 'RadarMon@2024!' \
   --policy /ilm/policy.json 2>/dev/null \
-  && echo '  ✅ 创建成功' || echo '  ℹ️  已存在'
+  && echo '  ✅ 监控账号创建成功' || echo '  ℹ️  已存在'
 
 echo ''
 echo '=== ✅ 初始化完成 ==='
-echo '  热数据: http://VM-1-IP:9010'
-echo '  冷数据: http://VM-2-IP:9020'
-echo '  Nginx:  http://VM-1-IP:18080'
+echo '  热数据: http://VM-1-IP:9010          (radar-data)'
+echo '  冷数据: http://VM-2-IP:9020          (radar-archive-cold)'
+echo '  Nginx:  http://VM-1-IP:18080         (雷达设备入口)'
 echo '  监控:   http://VM-1-IP:8888'

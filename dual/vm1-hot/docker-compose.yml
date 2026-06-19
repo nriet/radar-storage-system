@@ -1,7 +1,7 @@
 # ============================================================
-# VM-1 热数据节点 docker-compose
-# 服务: MinIO热存储 + Nginx + 监控 + 雷达模拟器
-# 数据盘: /data/nvme1, /data/nvme2 (OneStor NVMe卷)
+# VM-1 热数据节点 docker-compose（生产环境）
+# 服务: MinIO热存储 + Nginx + 监控
+# 数据盘: OneStor NVMe块存储卷 → /data/nvme1, /data/nvme2
 # 规格: 4核 / 32 GB
 # ============================================================
 
@@ -13,6 +13,7 @@ networks:
         - subnet: 172.20.1.0/24
 
 services:
+  # ── MinIO 热存储 ──
   minio-hot:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
     container_name: minio-hot
@@ -36,6 +37,7 @@ services:
       interval: 10s; timeout: 3s; retries: 3; start_period: 20s
     restart: unless-stopped
 
+  # ── Nginx 负载均衡 ──
   nginx-lb:
     image: nginx:1.25-alpine
     container_name: nginx-lb
@@ -46,12 +48,13 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "18080:18080"
-      - "18081:18081"
+      - "18080:18080"     # S3 API（雷达设备入口）
+      - "18081:18081"     # Console（运维入口）
     depends_on:
       - minio-hot
     restart: unless-stopped
 
+  # ── 初始化（部署时执行一次，完成后 exit） ──
   mc-init:
     image: minio/mc:latest
     container_name: mc-init
@@ -69,25 +72,7 @@ services:
     entrypoint: sh -c "sh /init.sh"
     restart: "no"
 
-  radar-simulator:
-    image: python:3.11-alpine
-    container_name: radar-simulator
-    networks:
-      radar-net:
-        ipv4_address: 172.20.1.60
-    volumes:
-      - ../scripts/radar_simulator.py:/app/radar_simulator.py:ro
-    depends_on:
-      - mc-init
-    environment:
-      - MINIO_ENDPOINT=nginx-lb:18080
-      - MINIO_ACCESS_KEY=radar-simulator
-      - MINIO_SECRET_KEY=RadarSim@2024!
-      - RADAR_COUNT=20
-      - SIMULATION_INTERVAL=30
-    command: sh -c "pip install -q boto3 numpy && python3 /app/radar_simulator.py"
-    restart: unless-stopped
-
+  # ── 监控面板 ──
   monitor:
     image: python:3.11-alpine
     container_name: radar-monitor
@@ -100,8 +85,8 @@ services:
       - minio-hot
     environment:
       - MINIO_ENDPOINT=http://nginx-lb:18080
-      - MINIO_ACCESS_KEY=radar-simulator
-      - MINIO_SECRET_KEY=RadarSim@2024!
+      - MINIO_ACCESS_KEY=radar-monitor
+      - MINIO_SECRET_KEY=RadarMon@2024!
     command: sh -c "pip install -q boto3 flask && python3 /app/monitor.py"
     ports:
       - "8888:8888"

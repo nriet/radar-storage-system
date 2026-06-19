@@ -37,13 +37,13 @@ UIS 3060 G7 (超融合)
 
 ## 🚀 两种部署方案
 
-### 方案 A：单虚拟机（测试验证）
+### 方案 A：单虚拟机（开发/测试 🛠️ 含模拟器）
 
 ```bash
 cd radar-storage-system
 
-# 在 UIS 创建 1 台 VM (4核/16G)，挂载 OneStor 卷
-# /data/nvme1, /data/nvme2, /data/hdd1, /data/hdd2
+# 在 UIS 创建 1 台 VM (4核/32G)，挂载 OneStor 卷
+# 含雷达模拟器，自动写入数据验证系统功能
 
 ./manage.sh start
 ```
@@ -53,7 +53,7 @@ cd radar-storage-system
 | 4核 / 32GB | 热冷同机，Docker 一键部署 |
 | OneStor卷 × 4 | 2 NVMe + 2 HDD |
 
-### 方案 B：双虚拟机（生产环境）
+### 方案 B：双虚拟机（生产环境 🚀 无模拟器）
 
 ```bash
 cd radar-storage-system/dual
@@ -68,6 +68,13 @@ bash deploy.sh vm2
 export COLD_NODE_IP=<VM-2的IP>
 bash deploy.sh init
 ```
+
+| | 方案A | 方案B |
+|------|------|------|
+| 环境 | 🛠️ 开发/测试 | 🚀 生产 |
+| 模拟器 | ✅ 含 | ❌ 无 |
+| VM数 | 1台 | 2台 |
+| 部署 | `./manage.sh start` | `bash deploy.sh vm1 + vm2` |
 
 ---
 
