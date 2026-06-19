@@ -1,0 +1,44 @@
+# ============================================================
+# VM-2 冷数据节点部署配置
+# 部署在 UIS 虚拟机上
+# 服务: MinIO冷存储（纯存储节点，无计算负载）
+# 数据盘: /data/hdd1, /data/hdd2 (OneStor大容量HDD卷)
+# ============================================================
+
+networks:
+  radar-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
+
+volumes:
+  cold-data-1:
+  cold-data-2:
+
+services:
+  minio-cold:
+    image: minio/minio:RELEASE.2024-01-11T07-46-16Z
+    container_name: minio-cold
+    hostname: minio-cold
+    networks:
+      radar-net:
+        ipv4_address: 172.20.2.10
+    volumes:
+      - /data/hdd1:/data1     # OneStor HDD 大容量卷
+      - /data/hdd2:/data2     # OneStor HDD 大容量卷
+    environment:
+      - MINIO_ROOT_USER=radaradmin
+      - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
+      - MINIO_SITE_REGION=cn-east-1
+    command: server /data1 /data2 --console-address ":9001"
+    ports:
+      - "9020:9000"      # S3 API
+      - "19220:9001"     # Console
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped

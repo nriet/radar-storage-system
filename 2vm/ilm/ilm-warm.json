@@ -1,0 +1,19 @@
+{
+    "Rules": [{
+        "ID": "warm-to-cold-30d",
+        "Status": "Enabled",
+        "Filter": {"Prefix": ""},
+        "Transitions": [{
+            "Days": 30,
+            "StorageClass": "COLD-TIER"
+        }],
+        "Expiration": {"Days": 365},
+        "NoncurrentVersionTransition": {
+            "NoncurrentDays": 30,
+            "StorageClass": "COLD-TIER"
+        },
+        "NoncurrentVersionExpiration": {
+            "NoncurrentDays": 365
+        }
+    }]
+}

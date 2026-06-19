@@ -33,7 +33,7 @@ check_docker() {
 }
 
 check_ports() {
-    local ports=(9011 9012 9013 9014 9020 18080 18081 28080 28081 19090 29090 8888)
+    local ports=(9010 19110 9020 19220 18080 18081 8888)
     local occupied=()
     
     for port in "${ports[@]}"; do
@@ -64,10 +64,10 @@ cmd_start() {
     echo ""
     echo "  访问地址:"
     echo "  ┌──────────────────────────────────────────────┐"
-    echo "  │ MinIO Console:  http://localhost:9011        │"
-    echo "  │ S3 API (主):    http://localhost:18080       │"
-    echo "  │ S3 API (备):    http://localhost:28080       │"
-    echo "  │ 监控面板:       http://localhost:8888        │"
+    echo "  │ MinIO 热:     http://localhost:9010          │"
+    echo "  │ MinIO 冷:     http://localhost:9020          │"
+    echo "  │ Nginx:        http://localhost:18080         │"
+    echo "  │ 监控面板:     http://localhost:8888          │"
     echo "  └──────────────────────────────────────────────┘"
     echo ""
 }

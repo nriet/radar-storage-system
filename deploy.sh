@@ -2,8 +2,9 @@
 # ============================================================
 # 雷达数据存储系统 - 一键部署脚本
 # 纯 Docker 方式部署
-# 架构: 4节点MinIO集群 + 双Nginx负载均衡 + VIP漂移
-#       + 分层存储 + 自动生命周期管理
+# 架构: 1台热数据MinIO(NVMe) + 1台冷数据MinIO(HDD)
+#       + Nginx负载均衡 + 自动分层存储
+# 适配 UIS 超融合 + Polaris 分布式存储场景
 # 用法:
 #   chmod +x deploy.sh && ./deploy.sh
 # ============================================================
@@ -114,21 +115,13 @@ check_configs() {
 
     local required_files=(
         "${PROJECT_DIR}/docker-compose.yml"
-        "${PROJECT_DIR}/nginx/nginx1/nginx.conf"
-        "${PROJECT_DIR}/nginx/nginx1/conf.d/minio-s3.conf"
-        "${PROJECT_DIR}/nginx/nginx2/nginx.conf"
-        "${PROJECT_DIR}/nginx/nginx2/conf.d/minio-s3.conf"
-        "${PROJECT_DIR}/keepalived/keepalived-master.conf"
-        "${PROJECT_DIR}/keepalived/keepalived-backup.conf"
-        "${PROJECT_DIR}/keepalived/check_minio.sh"
-        "${PROJECT_DIR}/keepalived/notify.sh"
-        "${PROJECT_DIR}/ilm/ilm-rule-hot-to-warm.json"
-        "${PROJECT_DIR}/ilm/ilm-rule-warm-to-cold.json"
-        "${PROJECT_DIR}/ilm/ilm-rule-backup.json"
-        "${PROJECT_DIR}/ilm/radar-policy.json"
-        "${PROJECT_DIR}/scripts/init_minio.sh"
+        "${PROJECT_DIR}/vm-hot/nginx.conf"
+        "${PROJECT_DIR}/scripts/init.sh"
         "${PROJECT_DIR}/scripts/radar_simulator.py"
         "${PROJECT_DIR}/scripts/monitor_server.py"
+        "${PROJECT_DIR}/ilm/ilm-hot.json"
+        "${PROJECT_DIR}/ilm/ilm-warm.json"
+        "${PROJECT_DIR}/ilm/policy.json"
     )
 
     local missing=0
@@ -277,12 +270,12 @@ show_result() {
     echo ""
     echo "  📡 访问入口:"
     echo "  ┌──────────────────────────────────────────────────────┐"
-    echo "  │ MinIO Console:    http://localhost:19111 ~ 19114     │"
-    echo "  │ S3 API (主入口):  http://localhost:18080             │"
-    echo "  │ S3 API (备入口):  http://localhost:28080             │"
-    echo "  │ Nginx状态(主):    http://localhost:19090/status      │"
-    echo "  │ Nginx状态(备):    http://localhost:29090/status      │"
-    echo "  │ 监控面板:         http://localhost:8888              │"
+    echo "  │ MinIO 热数据:   http://localhost:9010 (S3)           │"
+    echo "  │ MinIO 热Console:http://localhost:19110               │"
+    echo "  │ MinIO 冷数据:   http://localhost:9020 (S3)           │"
+    echo "  │ MinIO 冷Console:http://localhost:19220               │"
+    echo "  │ Nginx 入口:     http://localhost:18080               │"
+    echo "  │ 监控面板:       http://localhost:8888                │"
     echo "  └──────────────────────────────────────────────────────┘"
     echo ""
     echo "  🔑 默认凭证: radaradmin / RadarAdmin@2024!"
