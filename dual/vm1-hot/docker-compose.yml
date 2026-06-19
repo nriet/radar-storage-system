@@ -34,7 +34,10 @@ services:
       - "19110:9001"
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
-      interval: 10s; timeout: 3s; retries: 3; start_period: 20s
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # ── Nginx 负载均衡 ──
