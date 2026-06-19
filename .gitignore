@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# 导出镜像（太大不提交）
+offline-images/*.tar
+
 # Data directories (keep structure, ignore actual data)
 minio/node1/data/*
 minio/node2/data/*
