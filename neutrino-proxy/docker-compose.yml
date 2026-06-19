@@ -1,0 +1,20 @@
+# ============================================================
+# 中微子代理客户端 — 内网穿透
+# 将局域网服务暴露到公网
+# 管理后台: http://124.223.33.106:8888  (admin/Nriet123!)
+# License: radar-data (ID:3)
+# ============================================================
+
+services:
+  neutrino-proxy-client:
+    container_name: neutrino-proxy-client
+    image: registry.cn-hangzhou.aliyuncs.com/asgc/neutrino-proxy-client:latest
+    network_mode: "host"
+    environment:
+      - LICENSE_KEY=671d1ac557854fa4810bf3fb0322f0f8
+      - SERVER_PORT=9000
+      - SSL_ENABLE=false
+      - SERVER_IP=124.223.33.106
+    volumes:
+      - ./scripts:/scripts:ro
+    restart: always
