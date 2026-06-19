@@ -1,7 +1,12 @@
 # ============================================================
-# 方案A：单虚拟机部署（开发/测试环境，含雷达模拟器）
-# 架构: UIS VM + OneStor 分布式块存储
-# 生产环境请使用 dual/ 双机方案（无模拟器）
+# 📡 雷达数据存储系统
+# 方案 A：单虚拟机部署（开发 / 测试环境）
+#
+# 架构：UIS VM + OneStor 分布式块存储
+# 6 个容器：MinIO热 + MinIO冷 + Nginx + 初始化 + 模拟器 + 监控
+# 含雷达模拟器，部署后自动写入数据验证功能
+#
+# 启动：./manage.sh start
 # ============================================================
 
 networks:
@@ -12,12 +17,21 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
+  # OneStor 块存储卷模拟（生产环境改为宿主机路径挂载）
   hot-data-1:
   hot-data-2:
   cold-data-1:
   cold-data-2:
 
 services:
+
+  # ──────────────────────────────────────────────────────────
+  # 1. MinIO 热存储（NVMe）
+  #    - 实时雷达数据写入目标
+  #    - 2 盘单节点模式，冗余由 OneStor 底层保障
+  #    - 生产环境：/data/nvme1、/data/nvme2 为 OneStor 卷
+  #    - 端口 9010(S3) 供 Nginx 代理，19110(Console) 供运维
+  # ──────────────────────────────────────────────────────────
   minio-hot:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
     container_name: minio-hot
@@ -26,16 +40,16 @@ services:
       radar-net:
         ipv4_address: 172.20.0.10
     volumes:
-      - hot-data-1:/data1
-      - hot-data-2:/data2
+      - hot-data-1:/data1     # 生产：/data/nvme1
+      - hot-data-2:/data2     # 生产：/data/nvme2
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
     command: server /data1 /data2 --console-address ":9001"
     ports:
-      - "9010:9000"
-      - "19110:9001"
+      - "9010:9000"    # S3 API（数据读写）
+      - "19110:9001"   # Web Console（管理）
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
       interval: 10s
@@ -44,6 +58,12 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ──────────────────────────────────────────────────────────
+  # 2. MinIO 冷存储（HDD）
+  #    - 长期归档，存储 ILM 过渡过来的冷数据
+  #    - 生产环境：/data/hdd1、/data/hdd2 为 OneStor 大容量卷
+  #    - 生产方案B中，此容器独立部署在 VM-2
+  # ──────────────────────────────────────────────────────────
   minio-cold:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
     container_name: minio-cold
@@ -52,18 +72,24 @@ services:
       radar-net:
         ipv4_address: 172.20.0.20
     volumes:
-      - cold-data-1:/data1
-      - cold-data-2:/data2
+      - cold-data-1:/data1    # 生产：/data/hdd1
+      - cold-data-2:/data2    # 生产：/data/hdd2
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
     command: server /data1 /data2 --console-address ":9001"
     ports:
-      - "9020:9000"
-      - "19220:9001"
+      - "9020:9000"    # S3 API（冷数据访问）
+      - "19220:9001"   # Web Console
     restart: unless-stopped
 
+  # ──────────────────────────────────────────────────────────
+  # 3. Nginx 负载均衡
+  #    - 雷达设备唯一 S3 入口，代理到 minio-hot
+  #    - least_conn 算法，大文件传输不缓冲
+  #    - 端口 18080(S3 API) 供雷达写入，18081(Console) 运维入口
+  # ──────────────────────────────────────────────────────────
   nginx-lb:
     image: nginx:1.25-alpine
     container_name: nginx-lb
@@ -74,12 +100,18 @@ services:
     volumes:
       - ./single/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "18080:18080"
-      - "18081:18081"
+      - "18080:18080"   # 雷达数据 S3 入口
+      - "18081:18081"   # MinIO Console 入口
     depends_on:
       - minio-hot
     restart: unless-stopped
 
+  # ──────────────────────────────────────────────────────────
+  # 4. MinIO 初始化（一次性任务）
+  #    - 依赖 minio-hot 健康后才启动
+  #    - 执行 init.sh：创建桶 → 配置分层 → 设置 ILM → 建账号
+  #    - 完成后容器 exit（restart: "no"）
+  # ──────────────────────────────────────────────────────────
   mc-init:
     image: minio/mc:latest
     container_name: mc-init
@@ -87,14 +119,21 @@ services:
       radar-net:
         ipv4_address: 172.20.0.50
     volumes:
-      - ./single/ilm:/ilm:ro
-      - ./single/scripts/init.sh:/init.sh:ro
+      - ./single/ilm:/ilm:ro            # ILM 策略文件
+      - ./single/scripts/init.sh:/init.sh:ro   # 初始化脚本
     depends_on:
       minio-hot:
         condition: service_healthy
     entrypoint: sh -c "sh /init.sh"
     restart: "no"
 
+  # ──────────────────────────────────────────────────────────
+  # 5. 雷达数据模拟器（仅测试环境）
+  #    - 模拟 20 部雷达写入数据到 MinIO
+  #    - 4 种雷达类型：weather / surveillance / imaging / tracking
+  #    - 可调整 RADAR_COUNT 环境变量 (1~50)
+  #    - ⚠️ 生产环境不部署此容器
+  # ──────────────────────────────────────────────────────────
   radar-simulator:
     image: python:3.11-alpine
     container_name: radar-simulator
@@ -106,14 +145,20 @@ services:
     depends_on:
       - mc-init
     environment:
-      - MINIO_ENDPOINT=nginx-lb:18080
+      - MINIO_ENDPOINT=nginx-lb:18080      # 通过 Nginx 写入
       - MINIO_ACCESS_KEY=radar-simulator
       - MINIO_SECRET_KEY=RadarSim@2024!
-      - RADAR_COUNT=20
-      - SIMULATION_INTERVAL=30
+      - RADAR_COUNT=20                      # 模拟雷达数量
+      - SIMULATION_INTERVAL=30              # 上报间隔（秒）
     command: sh -c "pip install -q boto3 numpy && python3 /app/radar_simulator.py"
     restart: unless-stopped
 
+  # ──────────────────────────────────────────────────────────
+  # 6. 监控面板
+  #    - Web 实时监控：桶数量、对象数、数据量、上传活动
+  #    - Flask 服务，自动刷新
+  #    - 提供 /api/status JSON 接口供外部集成
+  # ──────────────────────────────────────────────────────────
   monitor:
     image: python:3.11-alpine
     container_name: radar-monitor
@@ -130,5 +175,5 @@ services:
       - MINIO_SECRET_KEY=RadarSim@2024!
     command: sh -c "pip install -q boto3 flask && python3 /app/monitor.py"
     ports:
-      - "8888:8888"
+      - "8888:8888"    # Web 监控面板
     restart: unless-stopped

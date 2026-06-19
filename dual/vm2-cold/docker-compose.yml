@@ -1,8 +1,10 @@
 # ============================================================
-# VM-2 冷数据节点 docker-compose
-# 服务: MinIO 纯存储节点
-# 数据盘: /data/hdd1, /data/hdd2 (OneStor HDD 大容量卷)
-# 规格: 4核 / 16 GB
+# 📡 雷达数据存储系统
+# 方案 B：双虚拟机部署 — VM-2 冷数据节点（生产环境）
+#
+# 1 个容器：MinIO 冷存储
+# 纯存储节点，不运行其他服务
+# 部署：bash deploy.sh vm2
 # ============================================================
 
 networks:
@@ -10,6 +12,14 @@ networks:
     driver: bridge
 
 services:
+
+  # ──────────────────────────────────────────────────────────
+  # MinIO 冷存储
+  #   - 长期归档，接收 ILM 从热节点过渡过来的冷数据
+  #   - 数据盘为 OneStor HDD 大容量卷（20T×2）
+  #   - OneStor 底层做副本，MinIO 单节点模式即可
+  #   - ILM 策略在 VM-1 初始化时配置（COLD-TIER 指向此处）
+  # ──────────────────────────────────────────────────────────
   minio-cold:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
     container_name: minio-cold
@@ -17,16 +27,16 @@ services:
     networks:
       - radar-net
     volumes:
-      - /data/hdd1:/data1
-      - /data/hdd2:/data2
+      - /data/hdd1:/data1    # OneStor HDD 卷 20T
+      - /data/hdd2:/data2    # OneStor HDD 卷 20T
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
     command: server /data1 /data2 --console-address ":9001"
     ports:
-      - "9020:9000"
-      - "19220:9001"
+      - "9020:9000"    # S3 API — 供 VM-1 分层存储连接
+      - "19220:9001"   # Web Console — 运维管理
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
       interval: 15s
