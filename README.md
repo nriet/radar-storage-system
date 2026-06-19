@@ -98,16 +98,23 @@ juicefs mount -d --writeback --cache-size 500000 \
 
 ---
 
-## ⚙️ OneStor 卷
+## ⚙️ 磁盘挂载（单机生产）
 
-| VM | 卷 | 大小 | 池 | 挂载点 |
-|----|-----|------|-----|--------|
-| VM-1 | vm1-hot-nvme | 3.84T | NVMe | `/data/nvme` |
-| VM-2 | vm2-cold-hdd | 20T | HDD | `/data/hdd` |
+| 磁盘 | 大小 | 角色 | 挂载点 | MinIO |
+|------|------|------|--------|-------|
+| /dev/vdb | 1.0 TB | 热数据 | `/data` | minio-hot |
+| /dev/vdc | 5.0 TB | 冷数据 | `/data_archive` | minio-cold |
 
-```bash
-mkfs.xfs /dev/vdb && mkdir -p /data/nvme
-mount /dev/vdb /data/nvme
+单机部署前修改 `docker-compose.yml`：
+
+```yaml
+minio-hot:
+  volumes:
+    - /data:/data          # 替换 hot-data
+
+minio-cold:
+  volumes:
+    - /data_archive:/data  # 替换 cold-data
 ```
 
 ---

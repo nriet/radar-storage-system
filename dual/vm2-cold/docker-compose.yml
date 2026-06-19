@@ -27,7 +27,7 @@ services:
     networks:
       - radar-net
     volumes:
-      - /data/hdd:/data     # OneStor HDD 卷
+      - /data_archive:/data     # 冷数据盘 (5TB)
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!

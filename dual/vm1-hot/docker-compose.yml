@@ -29,7 +29,7 @@ services:
       radar-net:
         ipv4_address: 172.20.1.10
     volumes:
-      - /data/nvme:/data     # OneStor NVMe 卷
+      - /data:/data     # 热数据盘 (1TB)
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!

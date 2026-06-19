@@ -27,7 +27,7 @@ services:
   # 1. MinIO 热存储（NVMe）
   #    - 实时雷达数据写入目标
   #    - 单盘模式，冗余由 OneStor 底层保障
-  #    - 生产环境挂载 OneStor NVMe 卷到 /data
+  #    - 生产环境挂载到 /data (热数据盘)
   #    - 端口 9010(S3) 供 Nginx 代理，19110(Console) 供运维
   # ──────────────────────────────────────────────────────────
   minio-hot:
@@ -38,7 +38,7 @@ services:
       radar-net:
         ipv4_address: 172.20.0.10
     volumes:
-      - hot-data:/data    # 生产：/data/nvme
+      - hot-data:/data    # 生产：/data
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
@@ -58,7 +58,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # 2. MinIO 冷存储（HDD）
   #    - 长期归档，存储 ILM 过渡过来的冷数据
-  #    - 生产环境挂载 OneStor HDD 大容量卷到 /data
+  #    - 生产环境挂载到 /data_archive (冷数据盘)
   #    - 生产方案B中，此容器独立部署在 VM-2
   # ──────────────────────────────────────────────────────────
   minio-cold:
@@ -69,7 +69,7 @@ services:
       radar-net:
         ipv4_address: 172.20.0.20
     volumes:
-      - cold-data:/data   # 生产：/data/hdd
+      - cold-data:/data   # 生产：/data_archive
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
