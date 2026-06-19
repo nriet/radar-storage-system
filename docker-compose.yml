@@ -18,6 +18,7 @@ networks:
 
 volumes:
   redis-data:
+  thredds-data:
 
 services:
 
@@ -188,4 +189,44 @@ services:
     command: sh -c "pip install -q boto3 flask && python3 /app/monitor.py"
     ports:
       - "8888:8888"    # Web 监控面板
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────
+  # 8. s3fs MinIO挂载 — 将 MinIO 桶映射为本地目录
+  #    供 THREDDS 直接读取，数据入 MinIO 后自动可见
+  #    需要: privileged + /dev/fuse
+  # ──────────────────────────────────────────────────────────
+  s3fs:
+    build: ./docker/s3fs
+    container_name: s3fs-mount
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    environment:
+      - S3_BUCKET=radar-data
+      - S3_ENDPOINT=http://minio-hot:9000
+      - S3_ACCESS_KEY=radaradmin
+      - S3_SECRET_KEY=RadarAdmin@2024!
+      - S3_MOUNT=/mnt
+      - S3FS_OPTS=-o use_path_request_style -o allow_other -o umask=000 -o dbglevel=warn
+    volumes:
+      - thredds-data:/mnt:shared
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────
+  # 9. THREDDS 数据服务 — 卫星/雷达数据 Web 发布
+  #    OPeNDAP / WMS / HTTPServer / NCISO
+  #    数据源: s3fs 挂载的 MinIO 桶 (thredds-data volume)
+  # ──────────────────────────────────────────────────────────
+  thredds:
+    image: unidata/thredds-docker:5.8
+    container_name: thredds
+    volumes:
+      - thredds-data:/usr/local/tomcat/content/thredds:shared
+    ports:
+      - "8080:8080"
+    depends_on:
+      - s3fs
     restart: unless-stopped
