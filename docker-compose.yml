@@ -1,8 +1,6 @@
 # ============================================================
-# 雷达数据存储系统 - Docker 部署方案
-# 架构: 4节点MinIO集群 + 双Nginx负载均衡 + VIP漂移
-#       + 分层存储 + 自动生命周期管理
-# 支持: 20-50部雷达平滑扩展
+# 雷达数据存储系统 - 单机 Docker 部署（测试/开发环境）
+# 生产环境请使用 dual/ 目录下的双虚拟机方案
 # ============================================================
 
 networks:
@@ -13,286 +11,86 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  minio-node1-data:
-  minio-node2-data:
-  minio-node3-data:
-  minio-node4-data:
+  hot-data-1:
+  hot-data-2:
+  cold-data-1:
+  cold-data-2:
 
 services:
-  # ============================================================
-  # MinIO 分布式集群 - 4节点 (热存储层)
-  # 每个节点挂载独立数据卷，通过分布式模式组成统一集群
-  # ============================================================
-  minio-node1:
+  minio-hot:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
-    container_name: radar-minio-node1
-    hostname: minio-node1
+    container_name: minio-hot
+    hostname: minio-hot
     networks:
       radar-net:
-        ipv4_address: 172.20.0.11
+        ipv4_address: 172.20.0.10
     volumes:
-      - minio-node1-data:/data
-      - ./minio/node1/config:/root/.minio
+      - hot-data-1:/data1
+      - hot-data-2:/data2
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
-      - MINIO_PROMETHEUS_AUTH_TYPE=public
-    command: server --console-address ":9001" http://minio-node{1...4}/data
+    command: server /data1 /data2 --console-address ":9001"
     ports:
-      - "9011:9000"     # S3 API
-      - "19111:9001"    # Console
+      - "9010:9000"
+      - "19110:9001"
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+      interval: 10s; timeout: 3s; retries: 3; start_period: 20s
     restart: unless-stopped
 
-  minio-node2:
-    image: minio/minio:RELEASE.2024-01-11T07-46-16Z
-    container_name: radar-minio-node2
-    hostname: minio-node2
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.12
-    volumes:
-      - minio-node2-data:/data
-      - ./minio/node2/config:/root/.minio
-    environment:
-      - MINIO_ROOT_USER=radaradmin
-      - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
-      - MINIO_PROMETHEUS_AUTH_TYPE=public
-    command: server --console-address ":9001" http://minio-node{1...4}/data
-    ports:
-      - "9012:9000"
-      - "19112:9001"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
-  minio-node3:
-    image: minio/minio:RELEASE.2024-01-11T07-46-16Z
-    container_name: radar-minio-node3
-    hostname: minio-node3
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.13
-    volumes:
-      - minio-node3-data:/data
-      - ./minio/node3/config:/root/.minio
-    environment:
-      - MINIO_ROOT_USER=radaradmin
-      - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
-      - MINIO_PROMETHEUS_AUTH_TYPE=public
-    command: server --console-address ":9001" http://minio-node{1...4}/data
-    ports:
-      - "9013:9000"
-      - "19113:9001"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
-  minio-node4:
-    image: minio/minio:RELEASE.2024-01-11T07-46-16Z
-    container_name: radar-minio-node4
-    hostname: minio-node4
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.14
-    volumes:
-      - minio-node4-data:/data
-      - ./minio/node4/config:/root/.minio
-    environment:
-      - MINIO_ROOT_USER=radaradmin
-      - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
-      - MINIO_SITE_REGION=cn-east-1
-      - MINIO_PROMETHEUS_AUTH_TYPE=public
-    command: server --console-address ":9001" http://minio-node{1...4}/data
-    ports:
-      - "9014:9000"
-      - "19114:9001"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
-  # ============================================================
-  # 冷存储层 - 归档存储 (模拟冷存储/磁带库)
-  # ============================================================
   minio-cold:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
-    container_name: radar-minio-cold
+    container_name: minio-cold
     hostname: minio-cold
     networks:
       radar-net:
         ipv4_address: 172.20.0.20
     volumes:
-      - ./minio/cold-tier/data:/data
-      - ./minio/cold-tier/config:/root/.minio
+      - cold-data-1:/data1
+      - cold-data-2:/data2
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
-    command: server /data --console-address ":9001"
+    command: server /data1 /data2 --console-address ":9001"
     ports:
-      - "9020:9000"     # S3 API
-      - "19220:9001"    # Console
+      - "9020:9000"
+      - "19220:9001"
     restart: unless-stopped
 
-  # ============================================================
-  # Nginx 负载均衡器 1 - 主节点
-  # ============================================================
-  nginx-lb1:
+  nginx-lb:
     image: nginx:1.25-alpine
-    container_name: radar-nginx-lb1
-    hostname: nginx-lb1
+    container_name: nginx-lb
+    hostname: nginx-lb
     networks:
       radar-net:
-        ipv4_address: 172.20.0.31
+        ipv4_address: 172.20.0.30
     volumes:
-      - ./nginx/nginx1/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/nginx1/conf.d:/etc/nginx/conf.d:ro
+      - ./single/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "18080:18080"   # MinIO S3 API 入口
-      - "18081:18081"   # MinIO Console 入口
-      - "19090:19090"   # Nginx 状态页面
+      - "18080:18080"
+      - "18081:18081"
     depends_on:
-      - minio-node1
-      - minio-node2
-      - minio-node3
-      - minio-node4
+      - minio-hot
     restart: unless-stopped
 
-  # ============================================================
-  # Nginx 负载均衡器 2 - 备用节点
-  # ============================================================
-  nginx-lb2:
-    image: nginx:1.25-alpine
-    container_name: radar-nginx-lb2
-    hostname: nginx-lb2
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.32
-    volumes:
-      - ./nginx/nginx2/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/nginx2/conf.d:/etc/nginx/conf.d:ro
-    ports:
-      - "28080:18080"   # MinIO S3 API 入口
-      - "28081:18081"   # MinIO Console 入口
-      - "29090:29090"   # Nginx 状态页面
-    depends_on:
-      - minio-node1
-      - minio-node2
-      - minio-node3
-      - minio-node4
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    restart: unless-stopped
-
-  # ============================================================
-  # Keepalived - VIP管理 (在主容器内运行)
-  # 注意: 在Docker中运行keepalived需要privileged权限
-  # ============================================================
-  keepalived-master:
-    image: alpine:3.18
-    container_name: radar-keepalived-master
-    hostname: keepalived-master
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.41
-    volumes:
-      - ./keepalived/keepalived-master.conf:/etc/keepalived/keepalived.conf:ro
-      - ./keepalived/check_minio.sh:/usr/local/bin/check_minio.sh
-      - ./keepalived/notify.sh:/usr/local/bin/notify.sh
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - NET_BROADCAST
-    privileged: true
-    command: >
-      sh -c "
-        apk add --no-cache keepalived iproute2 curl &&
-        chmod +x /usr/local/bin/check_minio.sh /usr/local/bin/notify.sh &&
-        keepalived --dont-fork --log-console -f /etc/keepalived/keepalived.conf
-      "
-    restart: unless-stopped
-
-  # ============================================================
-  # Keepalived - VIP管理 (备用节点)
-  # ============================================================
-  keepalived-backup:
-    image: alpine:3.18
-    container_name: radar-keepalived-backup
-    hostname: keepalived-backup
-    networks:
-      radar-net:
-        ipv4_address: 172.20.0.42
-    volumes:
-      - ./keepalived/keepalived-backup.conf:/etc/keepalived/keepalived.conf:ro
-      - ./keepalived/check_minio.sh:/usr/local/bin/check_minio.sh
-      - ./keepalived/notify.sh:/usr/local/bin/notify.sh
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - NET_BROADCAST
-    privileged: true
-    command: >
-      sh -c "
-        apk add --no-cache keepalived iproute2 curl &&
-        chmod +x /usr/local/bin/check_minio.sh /usr/local/bin/notify.sh &&
-        keepalived --dont-fork --log-console -f /etc/keepalived/keepalived.conf
-      "
-    restart: unless-stopped
-
-  # ============================================================
-  # MinIO 客户端 - 用于初始化和配置管理
-  # ============================================================
   mc-init:
     image: minio/mc:latest
-    container_name: radar-mc-init
+    container_name: mc-init
     networks:
       radar-net:
         ipv4_address: 172.20.0.50
     volumes:
-      - ./scripts:/scripts:ro
-      - ./ilm:/ilm:ro
+      - ./single/ilm:/ilm:ro
+      - ./single/scripts/init.sh:/init.sh:ro
     depends_on:
-      minio-node1:
+      minio-hot:
         condition: service_healthy
-      minio-node2:
-        condition: service_healthy
-      minio-node3:
-        condition: service_healthy
-      minio-node4:
-        condition: service_healthy
-      minio-cold:
-        condition: service_started
-    entrypoint:
-      - sh
-      - -c
-      - |
-        sh /scripts/init_minio.sh
-    restart: unless-stopped
+    entrypoint: sh -c "sh /init.sh"
+    restart: "no"
 
-  # ============================================================
-  # 雷达数据模拟器 - 模拟多部雷达数据写入
-  # ============================================================
   radar-simulator:
     image: python:3.11-alpine
     container_name: radar-simulator
@@ -300,25 +98,18 @@ services:
       radar-net:
         ipv4_address: 172.20.0.60
     volumes:
-      - ./scripts:/scripts:ro
+      - ./single/scripts/radar_simulator.py:/app/radar_simulator.py:ro
     depends_on:
       - mc-init
     environment:
-      - MINIO_ENDPOINT=nginx-lb1:18080
+      - MINIO_ENDPOINT=nginx-lb:18080
       - MINIO_ACCESS_KEY=radar-simulator
       - MINIO_SECRET_KEY=RadarSim@2024!
       - RADAR_COUNT=20
       - SIMULATION_INTERVAL=30
-    command: >
-      sh -c "
-        pip install --no-cache-dir boto3 numpy requests 2>/dev/null &&
-        python3 /scripts/radar_simulator.py
-      "
+    command: sh -c "pip install -q boto3 numpy && python3 /app/radar_simulator.py"
     restart: unless-stopped
 
-  # ============================================================
-  # 监控面板 - 实时数据监控
-  # ============================================================
   monitor:
     image: python:3.11-alpine
     container_name: radar-monitor
@@ -326,18 +117,14 @@ services:
       radar-net:
         ipv4_address: 172.20.0.70
     volumes:
-      - ./scripts:/scripts:ro
+      - ./single/scripts/monitor_server.py:/app/monitor.py:ro
     depends_on:
-      - mc-init
+      - minio-hot
     environment:
-      - MINIO_ENDPOINT=http://nginx-lb1:18080
+      - MINIO_ENDPOINT=http://nginx-lb:18080
       - MINIO_ACCESS_KEY=radar-simulator
       - MINIO_SECRET_KEY=RadarSim@2024!
-    command: >
-      sh -c "
-        pip install --no-cache-dir boto3 requests flask 2>/dev/null &&
-        python3 /scripts/monitor_server.py
-      "
+    command: sh -c "pip install -q boto3 flask && python3 /app/monitor.py"
     ports:
       - "8888:8888"
     restart: unless-stopped

@@ -1,0 +1,19 @@
+{
+    "Rules": [{
+        "ID": "hot-to-cold-7d",
+        "Status": "Enabled",
+        "Filter": {"Prefix": ""},
+        "Transitions": [{
+            "Days": 7,
+            "StorageClass": "COLD-TIER"
+        }],
+        "Expiration": {"Days": 90},
+        "NoncurrentVersionTransition": {
+            "NoncurrentDays": 7,
+            "StorageClass": "COLD-TIER"
+        },
+        "NoncurrentVersionExpiration": {
+            "NoncurrentDays": 180
+        }
+    }]
+}
