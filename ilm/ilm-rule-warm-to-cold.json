@@ -1,0 +1,34 @@
+{
+    "Rules": [
+        {
+            "ID": "radar-warm-to-cold-30d",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "",
+                "Tags": [
+                    {
+                        "Key": "retention",
+                        "Value": "warm"
+                    }
+                ]
+            },
+            "Transitions": [
+                {
+                    "Days": 30,
+                    "StorageClass": "COLD-TIER-S3",
+                    "RequestVersion": ""
+                }
+            ],
+            "Expiration": {
+                "Days": 365
+            },
+            "NoncurrentVersionTransition": {
+                "NoncurrentDays": 30,
+                "StorageClass": "COLD-TIER-S3"
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 365
+            }
+        }
+    ]
+}

@@ -1,0 +1,29 @@
+{
+    "Rules": [
+        {
+            "ID": "radar-hot-to-warm-7d",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "",
+                "Tags": []
+            },
+            "Expiration": {
+                "Days": 90
+            },
+            "Transitions": [
+                {
+                    "Days": 7,
+                    "StorageClass": "COLD-TIER-S3",
+                    "RequestVersion": ""
+                }
+            ],
+            "NoncurrentVersionTransition": {
+                "NoncurrentDays": 7,
+                "StorageClass": "COLD-TIER-S3"
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 180
+            }
+        }
+    ]
+}

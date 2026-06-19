@@ -1,0 +1,26 @@
+{
+    "Rules": [
+        {
+            "ID": "radar-backup-expire-90d",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "",
+                "Tags": [
+                    {
+                        "Key": "retention",
+                        "Value": "backup"
+                    }
+                ]
+            },
+            "Expiration": {
+                "Days": 90
+            },
+            "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 30
+            },
+            "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 7
+            }
+        }
+    ]
+}

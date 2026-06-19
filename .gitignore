@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories (keep structure, ignore actual data)
+minio/node1/data/*
+minio/node2/data/*
+minio/node3/data/*
+minio/node4/data/*
+minio/cold-tier/data/*
+minio/node1/config/*
+minio/node2/config/*
+minio/node3/config/*
+minio/node4/config/*
+minio/cold-tier/config/*
+!minio/node1/data/.gitkeep
+!minio/node2/data/.gitkeep
+!minio/node3/data/.gitkeep
+!minio/node4/data/.gitkeep
+!minio/cold-tier/data/.gitkeep
