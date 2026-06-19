@@ -18,18 +18,16 @@ networks:
 
 volumes:
   # OneStor 块存储卷模拟（生产环境改为宿主机路径挂载）
-  hot-data-1:
-  hot-data-2:
-  cold-data-1:
-  cold-data-2:
+  hot-data:
+  cold-data:
 
 services:
 
   # ──────────────────────────────────────────────────────────
   # 1. MinIO 热存储（NVMe）
   #    - 实时雷达数据写入目标
-  #    - 2 盘单节点模式，冗余由 OneStor 底层保障
-  #    - 生产环境：/data/nvme1、/data/nvme2 为 OneStor 卷
+  #    - 单盘模式，冗余由 OneStor 底层保障
+  #    - 生产环境挂载 OneStor NVMe 卷到 /data
   #    - 端口 9010(S3) 供 Nginx 代理，19110(Console) 供运维
   # ──────────────────────────────────────────────────────────
   minio-hot:
@@ -40,13 +38,12 @@ services:
       radar-net:
         ipv4_address: 172.20.0.10
     volumes:
-      - hot-data-1:/data1     # 生产：/data/nvme1
-      - hot-data-2:/data2     # 生产：/data/nvme2
+      - hot-data:/data    # 生产：/data/nvme
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
-    command: server /data1 /data2 --console-address ":9001"
+    command: server /data --console-address ":9001"
     ports:
       - "9010:9000"    # S3 API（数据读写）
       - "19110:9001"   # Web Console（管理）
@@ -61,7 +58,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # 2. MinIO 冷存储（HDD）
   #    - 长期归档，存储 ILM 过渡过来的冷数据
-  #    - 生产环境：/data/hdd1、/data/hdd2 为 OneStor 大容量卷
+  #    - 生产环境挂载 OneStor HDD 大容量卷到 /data
   #    - 生产方案B中，此容器独立部署在 VM-2
   # ──────────────────────────────────────────────────────────
   minio-cold:
@@ -72,13 +69,12 @@ services:
       radar-net:
         ipv4_address: 172.20.0.20
     volumes:
-      - cold-data-1:/data1    # 生产：/data/hdd1
-      - cold-data-2:/data2    # 生产：/data/hdd2
+      - cold-data:/data   # 生产：/data/hdd
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
-    command: server /data1 /data2 --console-address ":9001"
+    command: server /data --console-address ":9001"
     ports:
       - "9020:9000"    # S3 API（冷数据访问）
       - "19220:9001"   # Web Console

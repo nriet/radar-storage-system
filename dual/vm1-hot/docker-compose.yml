@@ -31,13 +31,12 @@ services:
       radar-net:
         ipv4_address: 172.20.1.10
     volumes:
-      - /data/nvme1:/data1    # OneStor NVMe 卷 3.84T
-      - /data/nvme2:/data2    # OneStor NVMe 卷 3.84T
+      - /data/nvme:/data     # OneStor NVMe 卷
     environment:
       - MINIO_ROOT_USER=radaradmin
       - MINIO_ROOT_PASSWORD=RadarAdmin@2024!
       - MINIO_SITE_REGION=cn-east-1
-    command: server /data1 /data2 --console-address ":9001"
+    command: server /data --console-address ":9001"
     ports:
       - "9010:9000"    # S3 API — 供 Nginx 代理
       - "19110:9001"   # Web Console — 运维管理
