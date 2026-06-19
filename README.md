@@ -1,113 +1,140 @@
 # 📡 雷达数据存储系统
 
-> 热数据 MinIO (NVMe) + 冷数据 MinIO (HDD) + Nginx 负载均衡 + 分层存储 + 自动生命周期管理
+> 架构：UIS 超融合虚拟机 + Polaris OneStor 分布式存储  
+> 服务：MinIO 热存储 (NVMe) → ILM 7天 → MinIO 冷存储 (HDD)  
+> 适用：20~50 部雷达
 
 ---
+
+## 🏗️ 架构
+
+```
+UIS 3060 G7 (超融合)
+│
+├── VM-1: 热数据节点
+│     ┌─────────────┐    ┌──────────────┐
+│     │ MinIO-Hot    │    │ Nginx        │
+│     │ /data/nvme1  │    │ 18080/18081  │
+│     │ /data/nvme2  │    └──────────────┘
+│     └──────┬───────┘
+│            │ 存储卷来自 ↓
+│
+├── VM-2: 冷数据节点
+│     ┌─────────────┐
+│     │ MinIO-Cold   │
+│     │ /data/hdd1   │
+│     │ /data/hdd2   │
+│     └──────┬───────┘
+│            │ 存储卷来自 ↓
+│
+├── OneStor 分布式存储层 (块存储)
+│    NVMe卷: 3.84T × 2    HDD卷: 20T × 2
+│    副本数: 2            副本数: 2
+│
+└── Polaris × 3 (物理存储节点)
+     NVMe 3.84T × 2 + SSD 7.68T × 12 + HDD 20T × 10
+```
 
 ## 🚀 两种部署方案
 
-### 方案 A：单虚拟机（测试 / 开发）
-
-```
-1 台 VM + 所有容器同机运行
-```
+### 方案 A：单虚拟机（测试验证）
 
 ```bash
-git clone https://github.com/nriet/radar-storage-system.git
 cd radar-storage-system
 
-# 一键启动
-./manage.sh start
+# 在 UIS 创建 1 台 VM (4核/16G)，挂载 OneStor 卷
+# /data/nvme1, /data/nvme2, /data/hdd1, /data/hdd2
 
-# 访问
-curl http://localhost:9010/minio/health/live    # MinIO 热
-curl http://localhost:9020/minio/health/live    # MinIO 冷
-curl http://localhost:18080                     # Nginx 代理
-curl http://localhost:8888/health               # 监控面板
+./manage.sh start
 ```
 
-| VM 规格 | 端口 |
-|---------|------|
-| 4核 / 16G | 9010(热S3) · 9020(冷S3) · 18080(Nginx) · 8888(监控) |
-
----
+| 规格 | 说明 |
+|------|------|
+| 4核 / 16GB | 热冷同机，Docker 一键部署 |
+| OneStor卷 × 4 | 2 NVMe + 2 HDD |
 
 ### 方案 B：双虚拟机（生产环境）
-
-```
-VM-1: 热节点 (MinIO + Nginx + 监控)    4核/16G
-VM-2: 冷节点 (MinIO 纯存储)            4核/8G
-```
 
 ```bash
 cd radar-storage-system/dual
 
-# ---- VM-1 上执行 ----
+# VM-1 (4核/16G): 热节点 —— 挂载 2× NVMe OneStor 卷
 bash deploy.sh vm1
 
-# ---- VM-2 上执行 ----
+# VM-2 (4核/8G):  冷节点 —— 挂载 2× HDD OneStor 卷
 bash deploy.sh vm2
 
-# ---- 回到 VM-1，初始化分层连接 ----
-export COLD_NODE_IP=<VM-2的IP地址>
+# VM-1: 初始化分层
+export COLD_NODE_IP=<VM-2的IP>
 bash deploy.sh init
 ```
 
 ---
 
-## 📋 架构对比
+## ⚙️ UIS OneStor 存储挂载步骤
 
-| | 方案A（单机） | 方案B（双机） |
-|------|-----------|-----------|
-| 适用 | 测试/开发 | 生产环境 |
-| 部署复杂度 | ⭐ 一条命令 | ⭐⭐ 两台VM |
-| 热冷隔离 | ❌ 同机 | ✅ 物理隔离 |
-| 容量 | Docker Volume | NVMe + HDD 直挂 |
+在 UIS Manager 中为每台 VM 创建并挂载 OneStor 块存储卷：
+
+### VM-1（热节点）
+
+| 卷名 | 大小 | 存储池 | VM挂载点 | 副本数 |
+|------|------|--------|----------|--------|
+| vm1-hot-nvme1 | 3.84T | NVMe池 | `/data/nvme1` | 2 |
+| vm1-hot-nvme2 | 3.84T | NVMe池 | `/data/nvme2` | 2 |
+
+### VM-2（冷节点）
+
+| 卷名 | 大小 | 存储池 | VM挂载点 | 副本数 |
+|------|------|--------|----------|--------|
+| vm2-cold-hdd1 | 20T | HDD池 | `/data/hdd1` | 2 |
+| vm2-cold-hdd2 | 20T | HDD池 | `/data/hdd2` | 2 |
+
+### VM 内格式化挂载
+
+```bash
+# 查看 OneStor 挂载的块设备
+lsblk
+
+# 格式化（仅首次）
+mkfs.xfs /dev/vdb           # NVMe 卷1
+mkfs.xfs /dev/vdc           # NVMe 卷2 (VM-1)
+mkfs.xfs /dev/vdb           # HDD 卷1  (VM-2)
+mkfs.xfs /dev/vdc           # HDD 卷2  (VM-2)
+
+# 挂载
+mkdir -p /data/nvme1 /data/nvme2
+mount /dev/vdb /data/nvme1
+mount /dev/vdc /data/nvme2
+
+# 持久化
+echo '/dev/vdb /data/nvme1 xfs defaults 0 0' >> /etc/fstab
+echo '/dev/vdc /data/nvme2 xfs defaults 0 0' >> /etc/fstab
+```
 
 ---
 
-## 🔄 数据流
+## 🔑 设计要点
 
-```
-雷达 → Nginx(18080) → MinIO热(NVMe) → ILM 7天 → MinIO冷(HDD)
-                                           └ 90天过期删除
-```
+| 决策 | 说明 |
+|------|------|
+| **MinIO 不做 EC** | OneStor 底层已做副本/EC，MinIO 单节点模式即可 |
+| **热冷分离** | 热数据 NVMe（低延迟）、冷数据 HDD（大容量） |
+| **副本数=2** | OneStor 2副本足够，省容量，3副本浪费 |
+| **ILM=7天** | 实时数据7天后自动过渡到冷层 |
 
 ---
 
 ## 📁 项目结构
 
 ```
-├── docker-compose.yml          # 单机方案（根目录直接启动）
-├── manage.sh                   # 单机管理脚本
-├── single/                     # 单机方案完整文件
-│   ├── nginx.conf
-│   ├── ilm/                    # ILM 策略
-│   └── scripts/               # 初始化 · 模拟器 · 监控
-├── dual/                       # 双机方案
-│   ├── deploy.sh
-│   ├── vm1-hot/               # VM-1 docker-compose
-│   ├── vm2-cold/              # VM-2 docker-compose
-│   ├── ilm/
-│   ├── scripts/
-│   └── manual/                # 安装手册 PDF
+├── docker-compose.yml       # 方案A：单机一键启动
+├── manage.sh                # 方案A：管理脚本
+├── single/                  # 方案A：完整文件
+│   ├── nginx.conf · ilm/ · scripts/
+├── dual/                    # 方案B：双机部署
+│   ├── deploy.sh · vm1-hot/ · vm2-cold/ · manual/
 └── README.md
 ```
-
----
-
-## ⚙️ 管理命令
-
-```bash
-# 单机
-./manage.sh start|stop|status|logs
-
-# 双机
-cd dual
-bash deploy.sh vm1|vm2|init|status-vm1|status-vm2|logs-vm1|logs-vm2
-```
-
----
 
 ## 🔑 默认凭证
 
