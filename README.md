@@ -50,7 +50,7 @@ cd radar-storage-system
 
 | 规格 | 说明 |
 |------|------|
-| 4核 / 16GB | 热冷同机，Docker 一键部署 |
+| 4核 / 32GB | 热冷同机，Docker 一键部署 |
 | OneStor卷 × 4 | 2 NVMe + 2 HDD |
 
 ### 方案 B：双虚拟机（生产环境）
@@ -58,10 +58,10 @@ cd radar-storage-system
 ```bash
 cd radar-storage-system/dual
 
-# VM-1 (4核/16G): 热节点 —— 挂载 2× NVMe OneStor 卷
+# VM-1 (4核/32G): 热节点 —— 挂载 2× NVMe OneStor 卷
 bash deploy.sh vm1
 
-# VM-2 (4核/8G):  冷节点 —— 挂载 2× HDD OneStor 卷
+# VM-2 (4核/16G): 冷节点 —— 挂载 2× HDD OneStor 卷
 bash deploy.sh vm2
 
 # VM-1: 初始化分层

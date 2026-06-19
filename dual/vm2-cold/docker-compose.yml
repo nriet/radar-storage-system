@@ -2,7 +2,7 @@
 # VM-2 冷数据节点 docker-compose
 # 服务: MinIO 纯存储节点
 # 数据盘: /data/hdd1, /data/hdd2 (OneStor HDD 大容量卷)
-# 规格: 4核 / 8 GB
+# 规格: 4核 / 16 GB
 # ============================================================
 
 networks:

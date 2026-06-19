@@ -17,7 +17,7 @@ check_docker() {
 }
 
 deploy_vm1() {
-  echo "📦 VM-1 热节点部署 (4核/16GB)"
+  echo "📦 VM-1 热节点部署 (4核/32GB)"
   check_docker
   cd "$(dirname "$0")/vm1-hot"
 
@@ -42,7 +42,7 @@ deploy_vm1() {
 }
 
 deploy_vm2() {
-  echo "📦 VM-2 冷节点部署 (4核/8GB)"
+  echo "📦 VM-2 冷节点部署 (4核/16GB)"
   check_docker
   cd "$(dirname "$0")/vm2-cold"
 

@@ -2,7 +2,7 @@
 # VM-1 热数据节点 docker-compose
 # 服务: MinIO热存储 + Nginx + 监控 + 雷达模拟器
 # 数据盘: /data/nvme1, /data/nvme2 (OneStor NVMe卷)
-# 规格: 4核 / 16 GB
+# 规格: 4核 / 32 GB
 # ============================================================
 
 networks:
