@@ -17,9 +17,9 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  # OneStor 块存储卷模拟（生产环境改为宿主机路径挂载）
   hot-data:
   cold-data:
+  redis-data:
 
 services:
 
@@ -81,7 +81,27 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 3. Nginx 负载均衡
+  # 3. Redis 元数据引擎（JuiceFS 使用）
+  #    - 为 JuiceFS 提供分布式元数据存储
+  #    - 如不使用 JuiceFS 可注释掉此服务
+  #    - 端口 6379，AOF 持久化
+  # ──────────────────────────────────────────────────────────
+  redis-meta:
+    image: redis:7-alpine
+    container_name: redis-meta
+    hostname: redis-meta
+    networks:
+      radar-net:
+        ipv4_address: 172.20.0.25
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"    # Redis 端口
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────
+  # 4. Nginx 负载均衡
   #    - 雷达设备唯一 S3 入口，代理到 minio-hot
   #    - least_conn 算法，大文件传输不缓冲
   #    - 端口 18080(S3 API) 供雷达写入，18081(Console) 运维入口
@@ -103,7 +123,7 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 4. MinIO 初始化（一次性任务）
+  # 5. MinIO 初始化（一次性任务）
   #    - 依赖 minio-hot 健康后才启动
   #    - 执行 init.sh：创建桶 → 配置分层 → 设置 ILM → 建账号
   #    - 完成后容器 exit（restart: "no"）
@@ -124,7 +144,7 @@ services:
     restart: "no"
 
   # ──────────────────────────────────────────────────────────
-  # 5. 雷达数据模拟器（仅测试环境）
+  # 6. 雷达数据模拟器（仅测试环境）
   #    - 模拟 20 部雷达写入数据到 MinIO
   #    - 4 种雷达类型：weather / surveillance / imaging / tracking
   #    - 可调整 RADAR_COUNT 环境变量 (1~50)
@@ -150,7 +170,7 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 6. 监控面板
+  # 7. 监控面板
   #    - Web 实时监控：桶数量、对象数、数据量、上传活动
   #    - Flask 服务，自动刷新
   #    - 提供 /api/status JSON 接口供外部集成

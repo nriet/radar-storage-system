@@ -2,11 +2,11 @@
 # 📡 雷达数据存储系统
 # 方案 B：双虚拟机部署 — VM-1 热数据节点（生产环境）
 #
-# 4 个容器：MinIO热 + Nginx + 初始化(一次性) + 监控
-# 不含雷达模拟器 — 由真实雷达设备写入
+# 5 个容器：MinIO热 + Redis(JuiceFS元数据) + Nginx + 初始化 + 监控
+# 不含雷达模拟器
 #
 # 部署：bash deploy.sh vm1
-# 部署后的初始化：export COLD_NODE_IP=<VM-2-IP> && bash deploy.sh init
+# 初始化：export COLD_NODE_IP=<VM-2-IP> && bash deploy.sh init
 # ============================================================
 
 networks:
@@ -19,9 +19,7 @@ networks:
 services:
 
   # ──────────────────────────────────────────────────────────
-  # 1. MinIO 热存储
-  #    实时雷达数据写入目标，数据盘为 OneStor NVMe 卷
-  #    OneStor 底层做副本/EC，MinIO 单节点模式即可
+  # 1. MinIO 热存储 — OneStor NVMe 卷
   # ──────────────────────────────────────────────────────────
   minio-hot:
     image: minio/minio:RELEASE.2024-01-11T07-46-16Z
@@ -38,8 +36,8 @@ services:
       - MINIO_SITE_REGION=cn-east-1
     command: server /data --console-address ":9001"
     ports:
-      - "9010:9000"    # S3 API — 供 Nginx 代理
-      - "19110:9001"   # Web Console — 运维管理
+      - "9010:9000"    # S3 API
+      - "19110:9001"   # Web Console
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000"]
       interval: 10s
@@ -49,9 +47,25 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 2. Nginx 负载均衡
-  #    雷达设备统一 S3 入口，代理到 minio-hot
-  #    雷达写入路径：雷达 → Nginx:18080 → MinIO:9000 → NVMe
+  # 2. Redis 元数据引擎（JuiceFS 使用）
+  #    如不启用 JuiceFS 可注释掉此服务
+  # ──────────────────────────────────────────────────────────
+  redis-meta:
+    image: redis:7-alpine
+    container_name: redis-meta
+    hostname: redis-meta
+    networks:
+      radar-net:
+        ipv4_address: 172.20.1.25
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────
+  # 3. Nginx 负载均衡 — 雷达设备统一 S3 入口
   # ──────────────────────────────────────────────────────────
   nginx-lb:
     image: nginx:1.25-alpine
@@ -64,17 +78,13 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
       - "18080:18080"   # S3 API — 雷达设备数据入口
-      - "18081:18081"   # MinIO Console — 运维入口
+      - "18081:18081"   # Console — 运维入口
     depends_on:
       - minio-hot
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 3. 初始化（一次性任务）
-  #    依赖 minio-hot 健康后执行：
-  #    连接 VM-2 冷节点 → 创建桶 → COLD-TIER 分层 → ILM 策略
-  #    需要环境变量 COLD_NODE_IP 指向 VM-2
-  #    完成后 exit（restart: "no"）
+  # 4. 初始化 — 一次性任务：桶+分层+ILM+账号
   # ──────────────────────────────────────────────────────────
   mc-init:
     image: minio/mc:latest
@@ -83,21 +93,18 @@ services:
       radar-net:
         ipv4_address: 172.20.1.50
     volumes:
-      - ../ilm:/ilm:ro               # ILM 策略文件
-      - ../scripts/init.sh:/init.sh:ro   # 初始化脚本
+      - ../ilm:/ilm:ro
+      - ../scripts/init.sh:/init.sh:ro
     depends_on:
       minio-hot:
         condition: service_healthy
     environment:
-      - COLD_NODE_IP                 # VM-2 的 IP（部署时设置）
+      - COLD_NODE_IP
     entrypoint: sh -c "sh /init.sh"
     restart: "no"
 
   # ──────────────────────────────────────────────────────────
-  # 4. 监控面板
-  #    Web 实时监控：桶数量、对象数、数据量
-  #    访问 http://VM-1-IP:8888
-  #    提供 /api/status JSON 接口供外部监控系统集成
+  # 5. 监控面板 — http://VM-1-IP:8888
   # ──────────────────────────────────────────────────────────
   monitor:
     image: python:3.11-alpine
@@ -115,5 +122,8 @@ services:
       - MINIO_SECRET_KEY=RadarMon@2024!
     command: sh -c "pip install -q boto3 flask && python3 /app/monitor.py"
     ports:
-      - "8888:8888"    # Web 监控面板
+      - "8888:8888"
     restart: unless-stopped
+
+volumes:
+  redis-data:
