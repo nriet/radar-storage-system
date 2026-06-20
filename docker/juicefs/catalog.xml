@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog name="Radar Data" xmlns="http://www.unidata.ucar.edu/namespaces/thredds/InvCatalog/v1.0"
+         xmlns:xlink="http://www.w3.org/1999/xlink" version="1.0.6">
+  <service name="all" base="" serviceType="compound">
+    <service name="dods" serviceType="OPeNDAP" base="/thredds/dodsC/"/>
+    <service name="httpserver" serviceType="HTTPServer" base="/thredds/fileServer/"/>
+    <service name="wms" serviceType="WMS" base="/thredds/wms/"/>
+  </service>
+
+  <dataset name="卫星数据" ID="satellite">
+    <metadata inherited="true"><dataType>Grid</dataType></metadata>
+    <datasetScan name="FY4B" path="fy4b" location="/usr/local/tomcat/content/thredds/fy4b/" serviceName="all">
+      <filter><include wildcard="*.NC"/></filter>
+    </datasetScan>
+  </dataset>
+
+  <dataset name="雷达数据" ID="radar">
+    <metadata inherited="true"><dataType>Grid</dataType></metadata>
+    <datasetScan name="Raw" path="radar-raw" location="/usr/local/tomcat/content/thredds/radar-netcdffiles/" serviceName="all">
+      <filter><include wildcard="*.nc"/></filter>
+    </datasetScan>
+    <datasetScan name="Mosaic" path="mosaic" location="/usr/local/tomcat/content/thredds/radar-mosaic/" serviceName="all">
+      <filter><include wildcard="*.NC"/></filter>
+    </datasetScan>
+  </dataset>
+</catalog>

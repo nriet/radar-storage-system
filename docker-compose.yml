@@ -19,6 +19,7 @@ networks:
 volumes:
   redis-data:
   thredds-data:
+  jfs-cache:
 
 services:
 
@@ -192,33 +193,40 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
-  # 8. s3fs MinIO挂载 — 将 MinIO 桶映射为本地目录
-  #    供 THREDDS 直接读取，数据入 MinIO 后自动可见
+  # 8. JuiceFS 挂载 — MinIO → POSIX 文件系统
+  #    将 MinIO 桶挂载为本地目录供 THREDDS 读取
+  #    元数据: redis-meta; 数据: minio-hot
+  #    特性: writeback缓存, 文件锁, 原子rename, 强一致
   #    需要: privileged + /dev/fuse
   # ──────────────────────────────────────────────────────────
-  s3fs:
-    build: ./docker/s3fs
-    container_name: s3fs-mount
+  juicefs-mount:
+    build: ./docker/juicefs
+    container_name: juicefs-mount
     privileged: true
     cap_add:
       - SYS_ADMIN
     devices:
       - /dev/fuse
+    depends_on:
+      - minio-hot
+      - redis-meta
     environment:
-      - S3_BUCKET=radar-data
-      - S3_ENDPOINT=http://minio-hot:9000
-      - S3_ACCESS_KEY=radaradmin
-      - S3_SECRET_KEY=RadarAdmin@2024!
-      - S3_MOUNT=/mnt
-      - S3FS_OPTS=-o use_path_request_style -o allow_other -o umask=000 -o dbglevel=warn
+      - JFS_META=redis://redis-meta:6379/0
+      - JFS_MOUNT=/mnt
+      - JFS_BUCKET=http://minio-hot:9000/radar-data
+      - JFS_ACCESS_KEY=radaradmin
+      - JFS_SECRET_KEY=RadarAdmin@2024!
+      - JFS_CACHE_SIZE=1000
     volumes:
       - thredds-data:/mnt:shared
+      - jfs-cache:/var/jfsCache
     restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────
   # 9. THREDDS 数据服务 — 卫星/雷达数据 Web 发布
   #    OPeNDAP / WMS / HTTPServer / NCISO
-  #    数据源: s3fs 挂载的 MinIO 桶 (thredds-data volume)
+  #    数据源: JuiceFS 挂载的 MinIO 桶 (thredds-data volume)
+  #    自动发现新文件，无需手动刷新
   # ──────────────────────────────────────────────────────────
   thredds:
     image: unidata/thredds-docker:5.8
@@ -228,5 +236,5 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - s3fs
+      - juicefs-mount
     restart: unless-stopped
